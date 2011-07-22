@@ -1,0 +1,13 @@
+<p>
+	Click the button to pay with iDEAL.
+</p>
+
+<form action="<?= $payment_method_obj->get_form_action($payment_method) ?>" method="post">
+	<?
+		$hidden_fields = $payment_method_obj->get_hidden_fields($payment_method, $order, true);
+		foreach ($hidden_fields as $name=>$value):
+	?>
+		<input type="hidden" name="<?= $name ?>" value="<?= h($value) ?>"/>
+	<? endforeach ?>
+	<?= backend_button('Pay with iDEAL', array('href'=>"#", 'onclick'=>'$(this).getForm().submit(); return false;')) ?>
+</form>

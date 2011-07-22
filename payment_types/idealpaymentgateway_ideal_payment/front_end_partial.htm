@@ -1,0 +1,13 @@
+<p class="top_offset">
+  Please select the bank you wish to pay with.
+</p>  
+<?= open_form() ?>
+  <?= IdealPaymentGateway_Helper::render_select($payment_method) ?>
+  <?
+    $hidden_fields = $payment_method_obj->get_hidden_fields($payment_method, $order);
+    foreach ($hidden_fields as $name=>$value):
+  ?>
+    <input type="hidden" name="<?= $name ?>" value="<?= h($value) ?>"/>
+  <? endforeach ?>
+  <input type="submit" value="Pay with iDEAL" onclick="return $(this).getForm().sendRequest('idealpaymentgateway:on_transaction')"/>
+<?= close_form() ?>
