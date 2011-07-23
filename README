@@ -1,1 +1,8 @@
 This module is currently in beta.  It should go into a "idealpaymentgateway" directory in your LemonStand modules directory.
+
+You will need to generate a self-signed private key and certificate (unless you already have them).  Use the following commands to do so:
+
+	/usr/bin/openssl genrsa -des3 -out private_key.pem -passout pass:the_passphrase 1024
+	/usr/bin/openssl req -x509 -new -key private_key.pem -passin pass:the_passphrase -days 3650 -out private_certificate.cer
+
+In the module settings, you can either provide the path to the file (currenty not fully tested) or copy and paste the values.  If you're on OS X, use: `cat filename | pbcopy` to copy a file's contents to the clipboard.
