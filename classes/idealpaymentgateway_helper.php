@@ -12,11 +12,12 @@
 		
 		public static function directoryRequest($fields = array(), $host_obj) {
 			$cache = Core_CacheBase::create();
-			if (!($result = $cache->get('idealpaymentgateway:DirectoryReq'))) {
+			$cache_key = 'idealpaymentgateway:DirectoryReq:' . ($host_obj->test_mode?'testing':'live');
+			if (!($result = $cache->get($cache_key))) {
 				$result = self::doRequest('DirectoryReq', $fields, $host_obj);
 				if (!$result->Error) {
 					$result = $result->asXml();
-					$cache->set('idealpaymentgateway:DirectoryReq', $result, 7200);
+					$cache->set($cache_key, $result, 7200);
 				} else {
 					$result = $result->asXml();
 				}
