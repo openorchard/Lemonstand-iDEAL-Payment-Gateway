@@ -238,6 +238,7 @@
 				if (!$is_backend)
 				{
 					$return_page = $redirect_to_cancel ? $order->payment_method->cancel_page : $order->payment_method->receipt_page;
+					$return_page = is_numeric($return_page) ? Cms_Page::create()->find($return_page) : $return_page;
 					if ($return_page)
 						Phpr::$response->redirect(root_url($return_page->url.'/'.$order->order_hash).'?utm_nooverride=1');
 					else 
