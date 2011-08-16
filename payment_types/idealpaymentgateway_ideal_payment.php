@@ -53,7 +53,7 @@
 				$host_obj->add_field('subID', 'Sub ID', 'right')->tab('Configuration')->renderAs(frm_text)->comment('Please provide your Sub ID, if used', 'above');
 				$host_obj->add_field('certificate', 'Certificate')->tab('Configuration')->renderAs(frm_textarea)->comment('Please provide your certificate or the full path to its location', 'above')->validation()->fn('trim')->required('Please provide certificate.');
 				$host_obj->add_field('private_key', 'Private Key')->tab('Configuration')->renderAs(frm_textarea)->comment('Please provide your private key or the full path to its location', 'above')->validation()->fn('trim')->required('Please provide private key.');
-				$host_obj->add_field('private_key_passphrase', 'Private Key Passphrase')->tab('Configuration')->renderAs(frm_password)->comment('Please provide the passphrase to unlock your private key', 'above')->validation()->fn('trim')->required('Passphrase is required');
+				$pkp_field = $host_obj->add_field('private_key_passphrase', 'Private Key Passphrase')->tab('Configuration')->renderAs(frm_password)->comment('Please provide the passphrase to unlock your private key', 'above')->validation()->fn('trim')->required('Passphrase is required');
 				$host_obj->add_field('acquirer_certificate', 'Acquirer Certificate')->tab('Configuration')->renderAs(frm_textarea)->comment('Please provide your acquirer\'s certificate or the full path to its location', 'above')->validation()->fn('trim')->required('Acquirer Certificate is required');
 				$host_obj->add_field('order_status', 'Order Status', 'left')->tab('Configuration')->renderAs(frm_dropdown)->comment('Select status to assign the order in case of successful payment.', 'above');
 				$host_obj->add_field('cancelled_order_status', 'Cancelled Order Status', 'right')->tab('Configuration')->renderAs(frm_dropdown)->comment('Select status to assign the order in case of unsuccessful payment.', 'above');
@@ -90,6 +90,13 @@
 		 */
 		public function validate_config_on_save($host_obj)
 		{
+			foreach (array('private_key_passphrase') as $field) {
+				if (isset($host_obj->fetched_data[$field]) && $host_obj->fetched_data[$field] && '' == $host_obj->{$field}) {
+					unset($host_obj->validation->errorFields[$field]);
+					$host_obj->{$field} = $host_obj->fetched_data[$field];
+				}
+			}
+			
 			if ('simulator' == $host_obj->bank_name && !$host_obj->test_mode)
 				$host_obj->validation->setError('You may only use the simulator when you are in test mode', null, true);
 			if (!IdealPaymentGateway_Helper::get_private_key($host_obj))
@@ -108,6 +115,9 @@
 		 */
 		public function validate_config_on_load($host_obj)
 		{
+			// Putting this here because it can't go anywhere else ...
+			if (isset($host_obj->fetched_data['private_key_passphrase']) && $host_obj->fetched_data['private_key_passphrase'])
+				unset($host_obj->validation->_fields['private_key_passphrase']);
 		}
 
 		/**
