@@ -138,16 +138,22 @@
 			$certificate = $host_obj->{$field};
 			try {
 				$is_string = openssl_x509_read($certificate);
+			} catch (Exception $e) {
+				// Couldn't read it from the string, try a file next
+				$is_string = null;
+			}
+			
+			try {
 				if (!$is_string) {
 					if (file_exists($certificate) && is_readable($certificate)) {
 						$certificate = openssl_x509_read(file_get_contents($certificate));
 					}
 				}
 			} catch (Exception $e) {
-				// We don't want to feed the exception back up the chain, just return null
+				// Couldn't read from the file, bail
 				return null;
 			}
-			
+
 			$data = null;
 			if(!openssl_x509_export($certificate, $data)) {
 				return null;
