@@ -1,4 +1,8 @@
 <?
+	if (!class_exists('XMLSecurityKey')) {
+		require_once dirname(__FILE__) . '/../vendor/xmlseclibs.php';
+	}
+	
 	class IdealPaymentGateway_Helper {
 		protected static $last_response;
 		
@@ -56,8 +60,11 @@
 					'authentication' => 'SHA1_RSA',
 				)
 			), $fields);
-			$fields['Merchant']['token'] = self::generateToken($host_obj);
-			$fields['Merchant']['tokenCode'] = base64_encode(self::generateTokenCode($fields, $host_obj));
+			
+			if ($host_obj->old_version) {
+				$fields['Merchant']['token'] = self::generateToken($host_obj);
+				$fields['Merchant']['tokenCode'] = base64_encode(self::generateTokenCode($fields, $host_obj));
+			}
 			
 			
 			$data = new SimpleXMLElement("<?xml version=\"1.0\" encoding=\"utf-8\" ?><{$type} xmlns=\"http://www.idealdesk.com/Message\" version=\"1.1.0\"></{$type}>");
@@ -71,6 +78,25 @@
 										 } 
 								 }');
 			$f($f,$data,$fields);
+			
+			if (!$host_obj->old_version) {
+				$dom = dom_import_simplexml($data)->ownerDocument;
+				
+				$objDSig = new XMLSecurityDSig();
+				$objDSig->setCanonicalMethod(XMLSecurityDSig::EXC_C14N);
+				$objDSig->addReference($doc, XMLSecurityDSig::SHA256, array('http://www.w3.org/2000/09/xmldsig#enveloped-signature'), array('force_uri' => true));
+				
+				$objKey = new XMLSecurityKey(XMLSecurityKey::RSA_SHA1, array('type'=>'private'));
+				$objKey->passphrase = $host_obj->private_key_passphrase;
+				$objKey->loadKey(self::get_private_key_contents($host_obj));
+				
+				$objDSig->sign($objKey);
+				$objDSig->add509Cert(self::get_certificate_contents($host_obj));
+				$objDSig->appendSignature($doc->documentElement);
+				
+				// $data = simplexml_import_dom($dom);
+			}
+			
 			$data = $data->asXml();
 			
 			traceLog( "Request\n\n" . $data . "\n\n\n" );
@@ -124,38 +150,35 @@
 			return self::$last_response ? self::$last_response : new SimpleXMLElemnt();
 		}
 		
-		public static function get_private_key($host_obj) {
+		public static function get_private_key_contents($host_obj) {
 			$private_key = $host_obj->private_key;
-			$is_string = openssl_pkey_get_private($private_key, $host_obj->private_key_passphrase);
-			if (!$is_string) {
-				if(file_exists($private_key) && is_readable($private_key))
-					$private_key = file_get_contents($private_key);
+			if (file_exists($private_key) && is_readable($private_key)) {
+				$private_key = file_get_contents($private_key);
 			}
-			return openssl_pkey_get_private($private_key, $host_obj->private_key_passphrase);
+			return $private_key;
+		}
+		
+		public static function get_private_key($host_obj) {
+			return openssl_pkey_get_private(self::get_private_key_contents($host_obj), $host_obj->private_key_passphrase);
+		}
+		
+		public static function get_certificate_contents($host_obj, $field = "certificate") {
+			$certificate = $host_obj->{$field};
+			if (file_exists($certificate) && is_readable($certificate)) {
+				$certificate = file_get_contents($certificate);
+			}
+			return $certificate;
 		}
 		
 		public static function get_certificate($host_obj, $field = "certificate") {
-			$certificate = $host_obj->{$field};
+			$certificate = get_certificate_contents($host_obj, $field);
 			try {
-				$is_string = openssl_x509_read($certificate);
-			} catch (Exception $e) {
-				// Couldn't read it from the string, try a file next
-				$is_string = null;
-			}
-			
-			try {
-				if (!$is_string) {
-					if (file_exists($certificate) && is_readable($certificate)) {
-						$certificate = openssl_x509_read(file_get_contents($certificate));
-					}
-				}
-			} catch (Exception $e) {
-				// Couldn't read from the file, bail
+				openssl_x509_read($certificate);
 				return null;
 			}
 
 			$data = null;
-			if(!openssl_x509_export($certificate, $data)) {
+			if (!openssl_x509_export($certificate, $data)) {
 				return null;
 			}
 			
