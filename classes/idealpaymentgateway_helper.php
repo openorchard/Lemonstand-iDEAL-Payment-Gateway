@@ -238,21 +238,31 @@
 
 		public static function render_select($host_obj) {
 			$issuers = self::directoryRequest(array(), $host_obj);
-			$short_list = $long_list = array();
-			foreach ($issuers->Directory->Issuer as $issuer) {
-				if ('Short' == (string)$issuer->issuerList) {
-					$short_list[(int)$issuer->issuerID] = (string)$issuer->issuerName;
-				} else {
-					$long_list[(int)$issuer->issuerID] = (string)$issuer->issuerName;
-				}
-			}
 			$str = '<select name="IdealPaymentGateway_issuerID">';
-			$str .= '<option value="">Kies uw bank.</option>';
-			foreach ($short_list as $id => $name)
-				$str .= '<option value="' . $id . '">' . h($name) . '</option>';
-			$str .= '<option value="">---Overige banken---</option>';
-			foreach ($long_list as $id => $name)
-				$str .= '<option value="' . $id . '">' . h($name) . '</option>';
+			if ($host_obj->old_version) {
+				$short_list = $long_list = array();
+				foreach ($issuers->Directory->Issuer as $issuer) {
+					if ('Short' == (string)$issuer->issuerList) {
+						$short_list[(int)$issuer->issuerID] = (string)$issuer->issuerName;
+					} else {
+						$long_list[(int)$issuer->issuerID] = (string)$issuer->issuerName;
+					}
+				}
+				$str .= '<option value="">Kies uw bank.</option>';
+				foreach ($short_list as $id => $name)
+					$str .= '<option value="' . $id . '">' . h($name) . '</option>';
+				$str .= '<option value="">---Overige banken---</option>';
+				foreach ($long_list as $id => $name)
+					$str .= '<option value="' . $id . '">' . h($name) . '</option>';
+			} else {
+				foreach ($issuers->Directory->Country as $country) {
+					$str .= '<optgroup label="' . h((string)$country->countryNames) . '">';
+					foreach ($country->Issuer as $issuer) {
+						$str .= '<option value="' . (string)$issuer->issuerID . '">' . h((string)$issuer->issuerName) . '</option>';
+					}
+					$str .= '</optgroup>';
+				};
+			}
 			$str .= '</select>';
 			return $str;
 		}
