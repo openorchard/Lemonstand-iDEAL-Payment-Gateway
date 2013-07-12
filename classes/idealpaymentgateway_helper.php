@@ -16,7 +16,8 @@
 		
 		public static function directoryRequest($fields = array(), $host_obj) {
 			$cache = Core_CacheBase::create();
-			$cache_key = 'idealpaymentgateway:DirectoryReq:' . ($host_obj->test_mode?'testing':'live');
+			$cache_key = 'idealpaymentgateway:DirectoryReq:' . 
+				($host_obj->test_mode?'testing':'live') . ($host_obj->old_version?'22':'331');
 			if (!($result = $cache->get($cache_key))) {
 				$result = self::doRequest('DirectoryReq', $fields, $host_obj);
 				if (!$result->Error) {
