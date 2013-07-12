@@ -45,6 +45,7 @@
 		 */
 		public function build_config_ui($host_obj, $context = null)
 		{
+			$host_obj->add_field('old_version', 'Old Version')->tab('Configuration')->renderAs(frm_onoffswitcher)->comment('Set this to "true" if you haven\'t updated your certificates for iDEAL v 3.3.1 and still wish to use the old gateway.  This won\'t be supported past August 2013.', 'above');
 			$host_obj->add_field('test_mode', 'Test Mode')->tab('Configuration')->renderAs(frm_onoffswitcher)->comment('Use the iDEAL Test Environment to try out Website Payments. This will use the test URL of the provider selected on the front end.', 'above');
 			$host_obj->add_field('bank_name', 'Bank Name')->tab('Configuration')->renderAs(frm_dropdown)->comment('Please select the bank through whom you have the iDEAL service', 'above')->validation()->required('Please select your bank');
 			if ($context !== 'preview')
@@ -128,6 +129,7 @@
 		public function init_config_data($host_obj)
 		{
 			$host_obj->test_mode = 1;
+			$host_obj->old_version = 1;
 		}
 		
 		public function get_cancel_page_options($current_key_value = -1)
