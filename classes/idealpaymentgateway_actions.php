@@ -28,13 +28,15 @@
 			// something's gone wrong.
 			$payment_type->update_transaction_status($order->payment_method, $order, $entrance_code, 'Internal Open', 'IO');
 			
+			$amount = $order->payment_method->old_version ? $order->total*100 : $order->total;
+			
 			$response = IdealPaymentGateway_Helper::transactionRequest(array(
 				'Issuer' => array('issuerID' => sprintf('%04d', $issuer_id)),
 				'Merchant' => array('merchantReturnURL' => root_url('/ls_ideal_handle_response/' . $order->order_hash, true, 'https')),
 				'Transaction' => array(
 					'purchaseID' => $order->id,
 					// Amount is in eurocents
-					'amount' => $order->total*100,
+					'amount' => $amount,
 					'currency' => Shop_CurrencySettings::get()->code,
 					'expirationPeriod' => 'PT30M',
 					'language' => 'nl',
