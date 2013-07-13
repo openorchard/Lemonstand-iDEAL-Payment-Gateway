@@ -175,7 +175,9 @@
 			$certificate = get_certificate_contents($host_obj, $field);
 			try {
 				openssl_x509_read($certificate);
-				return null;
+				catch (Exception $e) {
+					return null;
+				}
 			}
 
 			$data = null;
