@@ -15,7 +15,7 @@
 		
 		public static $v3acquirer_urls = array(
 			'ing' => array('ideal.secure-ing.com/ideal/iDEALv3', 'idealtest.secure-ing.com/ideal/iDEALv3'),
-			'abn' => array('abnamro.ideal-payment.de/ideal/iDEALv3', 'abnamro-test.ideal-payment.de/ideal/iDEALv3')
+			'abn' => array('abnamro.ideal-payment.de/ideal/iDEALv3', 'abnamro-test.ideal-payment.de/ideal/iDEALv3'),
 			'rabo' => array('ideal.rabobank.nl/ideal/iDEALv3','idealtest.rabobank.nl/ideal/iDEALv3'),
 			'simulator' => array('www.ideal-simulator.nl/professional-v3/', 'www.ideal-simulator.nl/professional-v3/')
 		);
