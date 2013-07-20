@@ -31,14 +31,14 @@
 			$amount = $order->payment_method->old_version ? $order->total*100 : $order->total;
 			
 			$response = IdealPaymentGateway_Helper::transactionRequest(array(
-				'Issuer' => array('issuerID' => sprintf('%04d', $issuer_id)),
+				'Issuer' => array('issuerID' => $issuer_id),
 				'Merchant' => array('merchantReturnURL' => root_url('/ls_ideal_handle_response/' . $order->order_hash, true, 'https')),
 				'Transaction' => array(
 					'purchaseID' => $order->id,
 					// Amount is in eurocents
 					'amount' => $amount,
 					'currency' => Shop_CurrencySettings::get()->code,
-					'expirationPeriod' => 'PT30M',
+					'expirationPeriod' => 'PT30M30S',
 					'language' => 'nl',
 					// Description contains no spaces to prevent discrepancies between gateways
 					'description' => 'Order_from_' . preg_replace('/\s+/', '_', Shop_CompanyInformation::get()->name),

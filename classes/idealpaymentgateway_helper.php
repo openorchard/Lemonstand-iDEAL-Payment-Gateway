@@ -13,6 +13,12 @@
 			'simulator' => array('www.ideal-simulator.nl/professional/','www.ideal-simulator.nl/professional/')
 		);
 		
+		public static $v3acquirer_urls = array(
+			'ing' => array('ideal.secure-ing.com/ideal/iDEALv3', 'idealtest.secure-ing.com/ideal/iDEALv3'),
+			'abn' => array('abnamro.ideal-payment.de/ideal/iDEALv3', 'abnamro-test.ideal-payment.de/ideal/iDEALv3')
+			'rabo' => array('ideal.rabobank.nl/ideal/iDEALv3','idealtest.rabobank.nl/ideal/iDEALv3'),
+			'simulator' => array('www.ideal-simulator.nl/professional-v3/', 'www.ideal-simulator.nl/professional-v3/')
+		);
 		
 		public static function directoryRequest($fields = array(), $host_obj) {
 			$cache = Core_CacheBase::create();
@@ -36,39 +42,107 @@
 		
 		public static function statusRequest($fields = array(), $host_obj) {
 			$response = self::doRequest('AcquirerStatusReq', $fields, $host_obj);
-			if ($response->Error)
+			if ($response->Error) {
 				throw new Phpr_ApplicationException('Error retrieving status request: ' . $response->Error->errorCode);
+			}
 			
-			$certificate = self::get_certificate($host_obj, 'acquirer_certificate');
-			if (!$certificate)
-				throw new Phpr_ApplicationException('Unable to load acquirer certificate');
+			if ($host_obj->old_version) {
+				$certificate = self::get_certificate($host_obj, 'acquirer_certificate');
+				if (!$certificate) {
+					throw new Phpr_ApplicationException('Unable to load acquirer certificate');
+				}
 			
-			$message = $response->createDateTimeStamp . $response->Transaction->transactionID .
-				$response->Transaction->status . (string)$response->Transaction->consumerAccountNumber;
+				$message = $response->createDateTimeStamp . $response->Transaction->transactionID .
+					$response->Transaction->status . (string)$response->Transaction->consumerAccountNumber;
 			
-			if (!self::verify_message($certificate, $message, base64_decode((string)$response->Signature->signatureValue)))
-				throw new Phpr_ApplicationException('Unable to securely verify returned status request');
-			
+				if (!self::verify_message($certificate, $message, base64_decode((string)$response->Signature->signatureValue))) {
+					throw new Phpr_ApplicationException('Unable to securely verify returned status request');
+				}
+			} else {
+				$dom = dom_import_simplexml($response)->ownerDocument;
+				
+				$objXMLSecDSig = new XMLSecurityDSig();
+				$objDSig = $objXMLSecDSig->locateSignature($dom);
+				if (!$objDSig) {
+					throw new Phpr_ApplicationException('Unable to locate signature node');
+				}
+				
+				$objXMLSecDSig->canonicalizeSignedInfo();
+				$objXMLSecDSig->idKeys = array('wsu:Id');
+				$objXMLSecDSig->idNS = array('wsu'=>'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd');
+				
+				$retVal = $objXMLSecDSig->validateReference();
+				
+				if (!$retVal) {
+					throw new Phpr_ApplicationException("Reference validation failed");
+				}
+	
+				$objKey = $objXMLSecDSig->locateKey();
+				if (!$objKey ) {
+					throw new Phpr_ApplicationException("Unable to locate key");
+				}
+				$key = null;
+				$objKey->loadKey(self::get_certificate_contents($host_obj, 'acquirer_certificate'));
+				
+				if (!$objXMLSecDSig->verify($objKey)) {
+					throw new Phpr_ApplicationException('Unable to securly verify returned status request');
+				}
+			}
 			return $response;
+		}
+		
+		public static function getSignedXmlElement($host_obj, $doc) {
+			$xml = new DOMDocument();
+			$xml->loadXML( $doc->asXml() );
+
+			// Decode the private key so we can use it to sign the request
+			$privateKey = new XMLSecurityKey(XMLSecurityKey::RSA_SHA256, array('type' => 'private'));
+			$privateKey->passphrase = $host_obj->private_key_passphrase;
+			$privateKey->loadKey(self::get_private_key_contents($host_obj));
+
+			// Create and configure the DSig helper and calculate the signature
+			$xmlDSigHelper = new XMLSecurityDSig();
+			$xmlDSigHelper->setCanonicalMethod(XMLSecurityDSig::EXC_C14N);
+			$xmlDSigHelper->addReference($xml, XMLSecurityDSig::SHA256, array('http://www.w3.org/2000/09/xmldsig#enveloped-signature'), array('force_uri' => true));
+			$xmlDSigHelper->sign($privateKey);
+
+			// Append the signature to the XML and save it for modification
+			$signature = $xmlDSigHelper->appendSignature($xml->documentElement);
+
+			// Calculate the fingerprint of the certificate
+			$thumbprint = XMLSecurityKey::getRawThumbprint(self::get_certificate_contents($host_obj));
+
+			// Append the KeyInfo and KeyName elements to the signature
+			$keyInfo = $signature->ownerDocument->createElementNS(XMLSecurityDSig::XMLDSIGNS, 'KeyInfo');
+			$keyName = $keyInfo->ownerDocument->createElementNS(XMLSecurityDSig::XMLDSIGNS, 'KeyName', $thumbprint);
+			$keyInfo->appendChild($keyName);
+			$signature->appendChild($keyInfo);
+
+			// Convert back to SimpleXMLElement and return
+			return new \SimpleXMLElement( $xml->saveXML() );
 		}
 		
 		public static function doRequest($type, &$fields, $host_obj) {
 			$fields = array_merge_recursive(array(
-				'createDateTimeStamp' => gmdate('Y-m-d\TH:i:s.000\Z'),
+				'createDateTimestamp' => gmdate('Y-m-d\TH:i:s.000\Z'),
 				'Merchant' => array(
-					'merchantID' => $host_obj->merchantID,
+					'merchantID' => sprintf('%09d', $host_obj->merchantID),
 					'subID' => (int)$host_obj->subID,
-					'authentication' => 'SHA1_RSA',
 				)
 			), $fields);
 			
 			if ($host_obj->old_version) {
 				$fields['Merchant']['token'] = self::generateToken($host_obj);
 				$fields['Merchant']['tokenCode'] = base64_encode(self::generateTokenCode($fields, $host_obj));
+				$fields['Merchant']['authentication'] = 'SHA1_RSA';
 			}
 			
+			uksort($fields, 'strcasecmp');
 			
-			$data = new SimpleXMLElement("<?xml version=\"1.0\" encoding=\"utf-8\" ?><{$type} xmlns=\"http://www.idealdesk.com/Message\" version=\"1.1.0\"></{$type}>");
+			$version = $host_obj->old_version ? '1.1.0' : '3.3.1';
+			$xmlns = $host_obj->old_version ? 'http://www.idealdesk.com/Message' : ('http://www.idealdesk.com/ideal/messages/mer-acq/' . $version);
+			
+			$data = new SimpleXMLElement("<?xml version=\"1.0\" encoding=\"utf-8\" ?><{$type} xmlns=\"{$xmlns}\"  version=\"{$version}\"></{$type}>");
 			$f = create_function('$f,$c,$a',' 
 								 foreach($a as $k=>$v) { 
 										 if(is_array($v)) { 
@@ -81,34 +155,22 @@
 			$f($f,$data,$fields);
 			
 			if (!$host_obj->old_version) {
-				$dom = dom_import_simplexml($data)->ownerDocument;
-				
-				$objDSig = new XMLSecurityDSig();
-				$objDSig->setCanonicalMethod(XMLSecurityDSig::EXC_C14N);
-				$objDSig->addReference($doc, XMLSecurityDSig::SHA256, array('http://www.w3.org/2000/09/xmldsig#enveloped-signature'), array('force_uri' => true));
-				
-				$objKey = new XMLSecurityKey(XMLSecurityKey::RSA_SHA1, array('type'=>'private'));
-				$objKey->passphrase = $host_obj->private_key_passphrase;
-				$objKey->loadKey(self::get_private_key_contents($host_obj));
-				
-				$objDSig->sign($objKey);
-				$objDSig->add509Cert(self::get_certificate_contents($host_obj));
-				$objDSig->appendSignature($doc->documentElement);
-				
-				// $data = simplexml_import_dom($dom);
+				$data = self::getSignedXmlElement($host_obj, $data);
 			}
 			
 			$data = $data->asXml();
 			
 			traceLog( "Request\n\n" . $data . "\n\n\n" );
 			
-			if ($response = Core_Http::post_data(self::$acquirer_urls[$host_obj->bank_name][($host_obj->test_mode?1:0)], $data)) {
+			$base_url = $host_obj->old_version ? self::$acquirer_urls : self::$v3acquirer_urls;
+			
+			if ($response = Core_Http::post_data($base_url[$host_obj->bank_name][($host_obj->test_mode?1:0)], $data)) {
 				$response = preg_split('/^\r?$/m', $response, 2);
 				$response = trim($response[1]);
 				try {
 					$xml = simplexml_load_string($response);
 				} catch ( Exception $e ) {
-					throw new Phpr_ApplicationException('Unable to retreive information from the payment gateway.');
+					throw new Phpr_ApplicationException('Unable to retreive information from the payment gateway. -- ' . $response);
 				}
 				traceLog( "Response\n\n" . $xml->asXml() . "\n\n\n" );
 				return (self::$last_response = $xml);
@@ -172,12 +234,11 @@
 		}
 		
 		public static function get_certificate($host_obj, $field = "certificate") {
-			$certificate = get_certificate_contents($host_obj, $field);
+			$certificate = self::get_certificate_contents($host_obj, $field);
 			try {
 				openssl_x509_read($certificate);
-				catch (Exception $e) {
-					return null;
-				}
+			} catch (Exception $e) {
+				return null;
 			}
 
 			$data = null;

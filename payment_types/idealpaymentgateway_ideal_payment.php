@@ -61,6 +61,8 @@
 			}
 			
 			$host_obj->add_field('cancel_page', 'Cancel Page', 'full')->tab('Configuration')->renderAs(frm_dropdown)->comment('Page to which the customer’s browser is redirected upon unsuccessful payment.', 'above')->tab('General Parameters')->previewNoRelation()->referenceSort('title');
+			
+			$host_obj->add_field('ignore_euro_restriction', 'Ignore Euro restriction', 'full')->tab('Configuration')->renderAs(frm_onoffswitcher)->comment('Ignore Euro restriction.', 'above');
 		}
 		
 		public function get_order_status_options($current_key_value = -1)
@@ -104,7 +106,7 @@
 				$host_obj->field_error('private_key', 'Your private key is not readable or is not in the proper format');
 			if (!IdealPaymentGateway_Helper::get_certificate($host_obj))
 				$host_obj->field_error('certificate', 'Your certificate is not readable or is not in the proper format');
-			if (Shop_CurrencySettings::get()->code != 'EUR')
+			if (!$host_obj->ignore_euro_restriction && Shop_CurrencySettings::get()->code != 'EUR')
 				$host_obj->validation->setError('iDEAL currently only supports Euro payments.  Ensure your currency settings are correct', null, true);
 		}
 		
@@ -130,6 +132,7 @@
 		{
 			$host_obj->test_mode = 1;
 			$host_obj->old_version = 1;
+			$host_obj->ignore_euro_restriction = 1;
 		}
 		
 		public function get_cancel_page_options($current_key_value = -1)
@@ -222,15 +225,15 @@
 						$response = IdealPaymentGateway_Helper::statusRequest(array('Transaction' => array('transactionID' => $transaction_id)), $order->payment_method);
 					} catch ( Exception $e ) {
 						$response = IdealPaymentGateway_Helper::getLastResponse();
-						throw $e;
 					}
 					
 					/*
 					 * Mark order as paid
 					 */
 			
-					if ($response->Error)
-						throw new Phpr_ApplicationException($response->Error->errorCode . ':' . $response->Error->consumerMessage);
+					if ($response->Error) {
+						$this->log_payment_attempt($order, 'Unsuccessful payment', 0, array(), Phpr::$request->get_fields, $response->asXML());
+					}
 						
 					if ('Success' == $response->Transaction->status) {
 						if ($order->set_payment_processed())
@@ -240,6 +243,9 @@
 						}
 					} else if ('Open' != $response->Transaction->status) {
 						// Open transactions will be retried automatically
+						if (!$response->Error) {
+							$this->log_payment_attempt($order, 'Unsuccessful payment', 0, array(), Phpr::$request->get_fields, $response->asXML());
+						}
 						Shop_OrderStatusLog::create_record($order->payment_method->cancelled_order_status, $order);
 						$payment_method_obj->update_transaction_status($order->payment_method, $order, $transaction_id, $response->Transaction->status, substr($response->Transaction->status, 0, 1));
 						
