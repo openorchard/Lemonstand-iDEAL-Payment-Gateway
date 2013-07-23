@@ -8,7 +8,7 @@
 		
 		public static $acquirer_urls = array(
 			'ing' => array('ideal.secure-ing.com/ideal/iDeal','idealtest.secure-ing.com/ideal/iDeal'),
-			'abn' => array('internetkassa.abnamro.nl/ncol/prod/orderstandard.asp','internetkassa.abnamro.nl/ncol/prod/orderstandard.asp'),
+			'abn' => array('internetkassa.abnamro.nl/ncol/prod/orderstandard.asp','internetkassa.abnamro.nl/ncol/test/orderstandard.asp'),
 			'rabo' => array('ideal.rabobank.nl/ideal/iDeal','idealtest.rabobank.nl/ideal/iDeal'),
 			'simulator' => array('www.ideal-simulator.nl/professional/','www.ideal-simulator.nl/professional/')
 		);
@@ -160,7 +160,9 @@
 			
 			$data = $data->asXml();
 			
-			traceLog( "Request\n\n" . $data . "\n\n\n" );
+			if (Phpr::$config->get('DEV_MODE')) {
+				traceLog( "Request\n\n" . $data . "\n\n\n" );
+			}
 			
 			$base_url = $host_obj->old_version ? self::$acquirer_urls : self::$v3acquirer_urls;
 			
@@ -172,7 +174,9 @@
 				} catch ( Exception $e ) {
 					throw new Phpr_ApplicationException('Unable to retreive information from the payment gateway. -- ' . $response);
 				}
-				traceLog( "Response\n\n" . $xml->asXml() . "\n\n\n" );
+				if (Phpr::$config->get('DEV_MODE')) {
+					traceLog( "Response\n\n" . $xml->asXml() . "\n\n\n" );
+				}
 				return (self::$last_response = $xml);
 			}
 		}
@@ -226,6 +230,9 @@
 		}
 		
 		public static function get_certificate_contents($host_obj, $field = "certificate") {
+			if ('acquirer_certificate' == $field) {
+				return file_get_contents(dirname(__FILE__) . '/../certificates/' . ($host_obj->old_version ? 'v2' : 'v3') . '/' . $host_obj->bank_name . '.cer');
+			}
 			$certificate = $host_obj->{$field};
 			if (file_exists($certificate) && is_readable($certificate)) {
 				$certificate = file_get_contents($certificate);

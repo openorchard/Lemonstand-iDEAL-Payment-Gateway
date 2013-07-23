@@ -28,6 +28,7 @@
 			// something's gone wrong.
 			$payment_type->update_transaction_status($order->payment_method, $order, $entrance_code, 'Internal Open', 'IO');
 			
+			// Amount is in eurocents if we're not using iDEAL v3
 			$amount = $order->payment_method->old_version ? $order->total*100 : $order->total;
 			
 			$response = IdealPaymentGateway_Helper::transactionRequest(array(
@@ -35,9 +36,8 @@
 				'Merchant' => array('merchantReturnURL' => root_url('/ls_ideal_handle_response/' . $order->order_hash, true, 'https')),
 				'Transaction' => array(
 					'purchaseID' => $order->id,
-					// Amount is in eurocents
 					'amount' => $amount,
-					'currency' => Shop_CurrencySettings::get()->code,
+					'currency' => 'EUR', //Shop_CurrencySettings::get()->code,
 					'expirationPeriod' => 'PT30M30S',
 					'language' => 'nl',
 					// Description contains no spaces to prevent discrepancies between gateways

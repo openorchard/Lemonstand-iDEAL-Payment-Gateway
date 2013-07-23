@@ -1,13 +1,13 @@
-<p>
-	Click the button to pay with iDEAL.
-</p>
-
-<form action="<?= $payment_method_obj->get_form_action($payment_method) ?>" method="post">
-	<?
-		$hidden_fields = $payment_method_obj->get_hidden_fields($payment_method, $order, true);
-		foreach ($hidden_fields as $name=>$value):
-	?>
-		<input type="hidden" name="<?= $name ?>" value="<?= h($value) ?>"/>
-	<? endforeach ?>
-	<?= backend_button('Pay with iDEAL', array('href'=>"#", 'onclick'=>'$(this).getForm().submit(); return false;')) ?>
-</form>
+<p class="top_offset">
+  Paying via the backend is not supported at this time.  <!-- Please select the bank you wish to pay with. -->
+</p>  
+<?= /* open_form() ?>
+  <?= IdealPaymentGateway_Helper::render_select($payment_method) ?>
+  <?
+    $hidden_fields = $payment_method_obj->get_hidden_fields($payment_method, $order);
+    foreach ($hidden_fields as $name=>$value):
+  ?>
+    <input type="hidden" name="<?= $name ?>" value="<?= h($value) ?>"/>
+  <? endforeach ?>
+  <input type="submit" value="Pay with iDEAL" onclick="return $(this).getForm().sendRequest('idealpaymentgateway:on_transaction')"/>
+<?= close_form() ?>
