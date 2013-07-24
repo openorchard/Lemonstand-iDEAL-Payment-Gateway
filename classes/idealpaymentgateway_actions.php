@@ -41,7 +41,7 @@
 					'expirationPeriod' => 'PT30M30S',
 					'language' => 'nl',
 					// Description contains no spaces to prevent discrepancies between gateways
-					'description' => 'Order_from_' . preg_replace('/\s+/', '_', Shop_CompanyInformation::get()->name),
+					'description' => 'Order_from_' . preg_replace('/\s+/', '_', Shop_CompanyInformation::get()->name) . '_' . $order->id,
 					'entranceCode' => $entrance_code
 				)
 			), $order->payment_method);
