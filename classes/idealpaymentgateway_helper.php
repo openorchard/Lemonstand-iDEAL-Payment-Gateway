@@ -123,8 +123,11 @@
 		}
 		
 		public static function doRequest($type, &$fields, $host_obj) {
+			
+			$tsNode = $host_obj->old_version ? 'createDateTimeStamp' : 'createDateTimestamp';
+			
 			$fields = array_merge_recursive(array(
-				'createDateTimestamp' => gmdate('Y-m-d\TH:i:s.000\Z'),
+				$tsNode => gmdate('Y-m-d\TH:i:s.000\Z'),
 				'Merchant' => array(
 					'merchantID' => sprintf('%09d', $host_obj->merchantID),
 					'subID' => (int)$host_obj->subID,
@@ -309,32 +312,39 @@
 
 		public static function render_select($host_obj) {
 			$issuers = self::directoryRequest(array(), $host_obj);
+			$failed = false;
 			$str = '<select name="IdealPaymentGateway_issuerID">';
-			if ($host_obj->old_version) {
-				$short_list = $long_list = array();
-				foreach ($issuers->Directory->Issuer as $issuer) {
-					if ('Short' == (string)$issuer->issuerList) {
-						$short_list[(int)$issuer->issuerID] = (string)$issuer->issuerName;
-					} else {
-						$long_list[(int)$issuer->issuerID] = (string)$issuer->issuerName;
+			try {
+				if ($host_obj->old_version) {
+					$short_list = $long_list = array();
+					foreach ($issuers->Directory->Issuer as $issuer) {
+						if ('Short' == (string)$issuer->issuerList) {
+							$short_list[(int)$issuer->issuerID] = (string)$issuer->issuerName;
+						} else {
+							$long_list[(int)$issuer->issuerID] = (string)$issuer->issuerName;
+						}
 					}
+					$str .= '<option value="">Kies uw bank.</option>';
+					foreach ($short_list as $id => $name)
+						$str .= '<option value="' . $id . '">' . h($name) . '</option>';
+					$str .= '<option value="">---Overige banken---</option>';
+					foreach ($long_list as $id => $name)
+						$str .= '<option value="' . $id . '">' . h($name) . '</option>';
+				} else {
+					foreach ($issuers->Directory->Country as $country) {
+						$str .= '<optgroup label="' . h((string)$country->countryNames) . '">';
+						foreach ($country->Issuer as $issuer) {
+							$str .= '<option value="' . (string)$issuer->issuerID . '">' . h((string)$issuer->issuerName) . '</option>';
+						}
+						$str .= '</optgroup>';
+					};
 				}
-				$str .= '<option value="">Kies uw bank.</option>';
-				foreach ($short_list as $id => $name)
-					$str .= '<option value="' . $id . '">' . h($name) . '</option>';
-				$str .= '<option value="">---Overige banken---</option>';
-				foreach ($long_list as $id => $name)
-					$str .= '<option value="' . $id . '">' . h($name) . '</option>';
-			} else {
-				foreach ($issuers->Directory->Country as $country) {
-					$str .= '<optgroup label="' . h((string)$country->countryNames) . '">';
-					foreach ($country->Issuer as $issuer) {
-						$str .= '<option value="' . (string)$issuer->issuerID . '">' . h((string)$issuer->issuerName) . '</option>';
-					}
-					$str .= '</optgroup>';
-				};
+			} catch (Exception $e) {
+				$failed = true;
+				echo $issuers->asXml();
+				$str = (string)$issuers->Error->consumerMessage;
 			}
-			$str .= '</select>';
+			$str .= $failed ? '' : '</select>';
 			return $str;
 		}
 	}
