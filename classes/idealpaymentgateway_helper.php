@@ -119,7 +119,7 @@
 			$signature->appendChild($keyInfo);
 
 			// Convert back to SimpleXMLElement and return
-			return new \SimpleXMLElement( $xml->saveXML() );
+			return new SimpleXMLElement($xml->saveXML());
 		}
 		
 		public static function doRequest($type, &$fields, $host_obj) {

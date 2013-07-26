@@ -37,11 +37,11 @@
 				'Transaction' => array(
 					'purchaseID' => $order->id,
 					'amount' => $amount,
-					'currency' => 'EUR', //Shop_CurrencySettings::get()->code,
+					'currency' => Shop_CurrencySettings::get()->code,
 					'expirationPeriod' => 'PT30M30S',
 					'language' => 'nl',
 					// Description contains no spaces to prevent discrepancies between gateways
-					'description' => 'Order_from_' . preg_replace('/\s+/', '_', Shop_CompanyInformation::get()->name) . '_' . $order->id,
+					'description' => substr('Order_' . preg_replace('/\s+/', '_', Shop_CompanyInformation::get()->name) . '_', 0, 22) . $order->id,
 					'entranceCode' => $entrance_code
 				)
 			), $order->payment_method);
