@@ -475,7 +475,7 @@ class XMLSecurityKey {
 	    if (! empty($this->cryptParams['digest'])) {
 	        $algo = $this->cryptParams['digest'];
 	    }
-        if (! openssl_sign ($data, $signature, $this->key, $algo)) {
+        if (! Nemid52Compat::openssl_sign ($data, $signature, $this->key, $algo)) {
             throw new Exception('Failure Signing Data: ' . openssl_error_string() . ' - ' . $algo);
             return;
         }
@@ -487,7 +487,7 @@ class XMLSecurityKey {
 	    if (! empty($this->cryptParams['digest'])) {
 	        $algo = $this->cryptParams['digest'];
 	    }
-        return openssl_verify ($data, $signature, $this->key, $algo);
+        return Nemid52Compat::openssl_verify ($data, $signature, $this->key, $algo);
     }
 
     public function encryptData($data) {
@@ -1736,5 +1736,94 @@ class XMLSecEnc {
             $node = $this->rawNode;
         }
         return XMLSecEnc::staticLocateKeyInfo($objBaseKey, $node);
+    }
+}
+
+// Nemid52Compat library original found at https://code.google.com/p/nemid-php/source/browse/trunk/lib/Nemid.php
+// It is licenced under the MIT licence
+
+class Nemid52Compat {
+
+    static function openssl_sign($data, &$signature, $priv_key_id, $signature_alg)
+    {
+        $eb = self::my_rsa_sha_encode($data, $priv_key_id, $signature_alg);
+        return openssl_private_encrypt($eb, $signature, $priv_key_id, OPENSSL_NO_PADDING); 
+    }
+    
+    static function openssl_verify($data, $signature, $pub_key_id, $signature_alg)
+    {
+        openssl_public_decrypt($signature, $decrypted_signature, $pub_key_id, OPENSSL_NO_PADDING);
+        $eb = self::my_rsa_sha_encode($data, $pub_key_id, $signature_alg);
+        return $decrypted_signature === $eb ? 1 : 0;
+    }
+    
+    static function my_rsa_sha_encode($data, $key_id, $signagure_alg) {
+        $algos = array(
+            'sha1WithRSAEncryption'   => array('alg' => 'sha1',   'oid' => '1.3.14.3.2.26'),
+            'sha256WithRSAEncryption' => array('alg' => 'sha256', 'oid' => '2.16.840.1.101.3.4.2.1'),
+            'sha384WithRSAEncryption' => array('alg' => 'sha384', 'oid' => '2.16.840.1.101.3.4.2.2'),
+            'sha512WithRSAEncryption' => array('alg' => 'sha512', 'oid' => '2.16.840.1.101.3.4.2.3'),
+        );
+    
+        $pinfo = openssl_pkey_get_details($key_id);
+        
+        if (!isset($algos[$signagure_alg])) {
+          $signagure_alg = strtolower($signagure_alg) . 'WithRSAEncryption';
+        }
+        
+        $digestalgorithm = $algos[$signagure_alg]['alg'];
+        $digestalgorithm or trigger_error('unknown or unsupported signaturealgorithm: ' . $signagure_alg);
+        $oid = $algos[$signagure_alg]['oid'];
+    
+        $digest = hash($digestalgorithm, $data, true);
+        
+        $t = self::sequence(self::sequence(self::s2oid($oid) . "\x05\x00") . self::octetstring($digest));
+        $pslen = $pinfo['bits']/8 - (strlen($t) + 3);
+    
+        $eb = "\x00\x01" . str_repeat("\xff", $pslen) . "\x00" . $t;
+        return $eb;
+    }
+    
+    static function sequence($pdu)
+    {
+        return "\x30" . self::len($pdu) . $pdu;
+    }
+    
+    static function s2oid($s)
+    {
+        $e = explode('.', $s);
+        $der = chr(40 * $e[0] + $e[1]);
+    
+        foreach (array_slice($e, 2) as $c) {
+            $mask = 0;
+            $derrev = '';
+            while ($c) {
+                $derrev .= chr(bcmod($c, 128) + $mask);
+                $c = bcdiv($c, 128, 0);
+                $mask = 128;
+            }
+            $der .= strrev($derrev);
+        }
+        return "\x06" . self::len($der) . $der;
+    }
+    
+    static function octetstring($s)
+    {
+        return "\x04" . self::len($s) . $s;
+    }
+    
+    
+    static function len($i)
+    {
+        $i = strlen($i);
+        if ($i <= 127)
+            $res = pack('C', $i);
+        elseif ($i <= 255)
+            $res = pack('CC', 0x81, $i);
+        elseif ($i <= 65535)
+            $res = pack('Cn', 0x82, $i);
+        else
+            $res = pack('CN', 0x84, $i);
+        return $res;
     }
 }
