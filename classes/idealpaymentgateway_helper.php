@@ -267,6 +267,7 @@
 		}
 		
 		public static function check_statues() {
+			Phpr_SecurityFramework::create()->reset_instance();
 			$payment_methods = Shop_PaymentMethod::create()->where('class_name = ?', 'IdealPaymentGateway_iDEAL_Payment')->find_all();
 			foreach ($payment_methods as $payment_method) {
 				$transactions = Shop_PaymentTransaction::create()->find_by_sql("SELECT * FROM (
